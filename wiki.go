@@ -1,10 +1,11 @@
-package main 
+package main
 
 import (
   "html/template"
-  "io/ioutil"
   "net/http"
   "regexp"
+  "gopkg.in/mgo.v2"
+  "gopkg.in/mgo.v2/bson"
 )
 
 type Page struct {
@@ -16,17 +17,39 @@ var templates = template.Must(template.ParseFiles("templates/edit.html", "templa
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
 func (p *Page) save() error {
-  filename := p.Title + ".txt"
-  return ioutil.WriteFile("pages/"+filename, p.Body, 0600)
+  session, err := mgo.Dial("localhost")
+  if err != nil {
+    panic(err)
+  }
+  defer session.Close()
+
+  session.SetMode(mgo.Monotonic, true)
+
+  c := session.DB("wiki").C("Pages")
+  err = c.Insert(&Page{Title: p.Title, Body: p.Body})
+   if err != nil {
+    return err
+   }
+   return err
 }
 
 func loadPage(title string) (*Page, error) {
-  filename := "pages/"+title + ".txt"
-  body, err := ioutil.ReadFile(filename)
+  session, err := mgo.Dial("localhost")
+  if err != nil {
+    panic(err)
+  }
+  defer session.Close()
+
+  session.SetMode(mgo.Monotonic, true)
+
+  c := session.DB("wiki").C("Pages")
+
+  result := Page{}
+  err = c.Find(bson.M{"title":title}).One(&result)
   if err != nil {
     return nil, err
   }
-  return &Page{Title: title, Body: body}, nil
+  return &Page{Title: title, Body: result.Body}, nil
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -53,7 +76,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
   if err != nil {
     http.Error(w, err.Error(), http.StatusInternalServerError)
     return
-  } 
+  }
   http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
