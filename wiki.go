@@ -26,10 +26,15 @@ func (p *Page) save() error {
   session.SetMode(mgo.Monotonic, true)
 
   c := session.DB("wiki").C("Pages")
-  err = c.Insert(&Page{Title: p.Title, Body: p.Body})
-   if err != nil {
-    return err
-   }
+
+  err = c.Update(bson.M{"title": p.Title}, &Page{Title: p.Title, Body: p.Body})
+  if err != nil {
+    err = c.Insert(&Page{Title: p.Title, Body: p.Body})
+    if err != nil {
+      return err
+    }
+  }
+
    return err
 }
 
